@@ -4,6 +4,7 @@ from models.domain import Order, Courier, DeliveryStatus, UserCreate, UserRespon
 from services.business_logic import DeliveryService
 from sqlalchemy.orm import Session
 from database import get_db, CourierDB, OrderDB, UserDB
+from repositories.order_repository import OrderRepository
 
 router = APIRouter()
 
@@ -14,71 +15,63 @@ def health_check():
 # --- Order Service ---
 @router.post("/orders/", response_model=Order, status_code=status.HTTP_201_CREATED)
 def create_order(order: Order, db: Session = Depends(get_db)):
-    # 1. Перевіряємо, чи немає вже замовлення з таким ID
-    existing_order = db.query(OrderDB).filter(OrderDB.id == order.id).first()
-    if existing_order:
+    repo = OrderRepository(db)
+    if repo.get_by_id(order.id):
         raise HTTPException(status_code=400, detail="Order with this ID already exists")
     
-    # 2. Створюємо запис для бази даних
-    new_order = OrderDB(
-        id=order.id,
-        client_name=order.client_name,
-        client_phone=order.client_phone,
-        client_address=order.client_address,
-        status=order.status,
-        courier_id=order.courier_id,
-        route=order.route,
-        price=order.price,
-        created_at=order.created_at
-    )
+    order_dict = order.dict(exclude_none=True)
     
-    # 3. Зберігаємо в БД
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order) # Оновлюємо об'єкт новими даними з БД (наприклад, згенерованими полями)
+    if order.client_id:
+        user = db.query(UserDB).filter(UserDB.id == order.client_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="Client user not found")
+        order_dict['client_name'] = user.name
+        order_dict['client_phone'] = user.phone or order_dict.get('client_phone')
+        order_dict['client_address'] = user.address or order_dict.get('client_address')
+    elif not order.client_name or not order.client_phone or not order.client_address:
+        raise HTTPException(status_code=400, detail="Must provide either client_id or full client details (name, phone, address)")
+
+    new_order = repo.create(order_dict)
     
     return new_order
 
 @router.get("/orders/", response_model=List[Order])
-def get_all_orders(sort_by: Optional[str] = None, db: Session = Depends(get_db)):
-    # Тепер ми беремо всі замовлення з бази даних SQLite!
-    query = db.query(OrderDB)
-    
-    if sort_by:
-        descending = sort_by.startswith('-')
-        field_name = sort_by.lstrip('-') if descending else sort_by
-        
-        column = getattr(OrderDB, field_name, None)
-        if column is not None:
-            if descending:
-                query = query.order_by(column.desc())
-            else:
-                query = query.order_by(column.asc())
-        else:
-            raise HTTPException(status_code=400, detail=f"Invalid sort field: {field_name}")
-
-    return query.all()
+def get_all_orders(
+    skip: int = 0, 
+    limit: int = 10, 
+    status_filter: Optional[str] = None,
+    sort_by: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    repo = OrderRepository(db)
+    return repo.get_all(skip=skip, limit=limit, status_filter=status_filter, sort_by=sort_by)
 
 @router.get("/orders/{order_id}", response_model=Order)
 def get_order(order_id: int, db: Session = Depends(get_db)):
-    # Шукаємо замовлення за ID в базі
-    order = db.query(OrderDB).filter(OrderDB.id == order_id).first()
+    repo = OrderRepository(db)
+    order = repo.get_by_id(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
 
 @router.patch("/orders/{order_id}/status", response_model=Order)
 def update_status(order_id: int, new_status: str, db: Session = Depends(get_db)):
-    # 1. Знаходимо замовлення
-    order = db.query(OrderDB).filter(OrderDB.id == order_id).first()
+    repo = OrderRepository(db)
+    
+    order = repo.get_by_id(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
-    # 2. Оновлюємо статус і зберігаємо зміни
-    order.status = new_status
-    db.commit()
-    db.refresh(order)
-    
+        
+    # Якщо статус змінюється на завершений, звільняємо кур'єра
+    if new_status in [DeliveryStatus.DELIVERED.value, DeliveryStatus.CANCELLED.value]:
+        courier = db.query(CourierDB).filter(CourierDB.current_order_id == order_id).first()
+        if courier:
+            courier.is_available = True
+            courier.current_order_id = None
+            courier.destination = None
+            db.commit()
+
+    order = repo.update(order_id, {"status": new_status})
     return order
 
 @router.post("/orders/{order_id}/assign", response_model=Order)
@@ -92,28 +85,41 @@ def assign_courier(order_id: int, db: Session = Depends(get_db)):
 
 @router.post("/orders/{order_id}/notify-arrival")
 def notify_arrival(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(OrderDB).filter(OrderDB.id == order_id).first()
+    repo = OrderRepository(db)
+    order = repo.get_by_id(order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
         
     if order.status not in [DeliveryStatus.IN_TRANSIT.value, DeliveryStatus.ASSIGNED.value]:
         raise HTTPException(status_code=400, detail="Cannot notify arrival. Courier is not on the way.")
         
-    order.status = DeliveryStatus.WAITING.value
-    db.commit()
-    db.refresh(order)
+    order = repo.update(order_id, {"status": DeliveryStatus.WAITING.value})
     
     message = f"Шановний {order.client_name}, ваш кур'єр очікує під дверима за адресою {order.client_address}!"
     return {"message": message, "order_status": order.status}
 
-@router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_order(order_id: int, db: Session = Depends(get_db)):
-    order = db.query(OrderDB).filter(OrderDB.id == order_id).first()
-    if not order:
+@router.put("/orders/{order_id}", response_model=Order)
+def replace_order(order_id: int, updated_order: Order, db: Session = Depends(get_db)):
+    repo = OrderRepository(db)
+    if not repo.get_by_id(order_id):
         raise HTTPException(status_code=404, detail="Order not found")
     
-    db.delete(order)
-    db.commit()
+    update_data = {
+        "client_name": updated_order.client_name,
+        "client_phone": updated_order.client_phone,
+        "client_address": updated_order.client_address,
+        "status": updated_order.status,
+        "courier_id": updated_order.courier_id,
+        "route": updated_order.route
+    }
+    return repo.update(order_id, update_data)
+
+@router.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_order(order_id: int, db: Session = Depends(get_db)):
+    repo = OrderRepository(db)
+    if not repo.delete(order_id):
+        raise HTTPException(status_code=404, detail="Order not found")
+    return None
 
 # --- Courier Service ---
 @router.get("/couriers/", response_model=List[Courier])
@@ -168,6 +174,11 @@ def get_weekly_statistics(db: Session = Depends(get_db)):
     return DeliveryService.get_weekly_statistics(db)
 
 # --- User Service ---
+@router.get("/users/", response_model=List[UserResponse])
+def get_all_users(db: Session = Depends(get_db)):
+    users = db.query(UserDB).all()
+    return users
+
 @router.post("/users/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(UserDB).filter(UserDB.email == user.email).first()
@@ -177,7 +188,9 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     new_user = UserDB(
         name=user.name,
         email=user.email,
-        password=user.password # В реальному проєкті пароль обов'язково треба хешувати
+        password=user.password, # В реальному проєкті пароль обов'язково треба хешувати
+        phone=user.phone,
+        address=user.address
     )
     
     db.add(new_user)

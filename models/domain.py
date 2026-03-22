@@ -16,25 +16,29 @@ class Client(BaseModel):
     phone: str
     address: str
 
-class Courier(BaseModel):
-    id: int
-    name: str
-    is_available: bool = True
-    current_location: Optional[str] = "База"
-
-    class Config:
-        from_attributes = True  
-
 class Order(BaseModel):
     id: int
-    client_name: str
-    client_phone: str
-    client_address: str
+    client_id: Optional[int] = None
+    client_name: Optional[str] = None
+    client_phone: Optional[str] = None
+    client_address: Optional[str] = None
     status: str = "Створено"
     courier_id: Optional[int] = None
     route: Optional[str] = None
     price: float = 0.0
     created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class Courier(BaseModel):
+    id: int
+    name: str
+    is_available: bool = True
+    current_location: Optional[str] = "База"
+    current_order_id: Optional[int] = None
+    destination: Optional[str] = None
+    current_order: Optional[Order] = None
 
     class Config:
         from_attributes = True
@@ -46,12 +50,25 @@ class UserCreate(BaseModel):
     name: str = Field(..., min_length=2)
     email: str
     password: str = Field(..., min_length=8)
+    phone: Optional[str] = None
+    address: Optional[str] = None
 
     @field_validator('email')
     @classmethod
     def validate_email(cls, v: str) -> str:
-        if not re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', v):
+        if not v.endswith('@gmail.com'):
+            raise ValueError('Дозволена тільки пошта @gmail.com')
+        if not re.match(r'^[\w\.-]+@gmail\.com$', v):
             raise ValueError('Invalid email format')
+        return v
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            # Валідація: +380XXXXXXXXX або просто 9 цифр
+            if not re.match(r'^\+380\d{9}$', v) and not re.match(r'^\d{9}$', v):
+                raise ValueError('Номер телефону повинен містити 9 цифр (або бути у форматі +380XXXXXXXXX)')
         return v
 
     @field_validator('password')
@@ -67,6 +84,8 @@ class UserResponse(BaseModel):
     id: int
     name: str
     email: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
 
     class Config:
         from_attributes = True

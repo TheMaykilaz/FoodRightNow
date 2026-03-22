@@ -1,0 +1,91 @@
+@startuml
+!theme plain
+skinparam roundcorner 10
+skinparam class {
+    BackgroundColor White
+    ArrowColor #2c3e50
+    BorderColor #2980b9
+}
+
+title "Delivery Management System - UML Бази Даних та Бізнес Логіки"
+
+' Сутності бази даних (Models)
+class UserDB << (E, #FF7700) Entity >> {
+  + id: Integer [PK]
+  + name: String
+  + email: String [Unique]
+  + password: String
+  + phone: String
+  + address: String
+  --
+  + orders: List<OrderDB>
+}
+
+class CourierDB << (E, #FF7700) Entity >> {
+  + id: Integer [PK]
+  + name: String
+  + is_available: Boolean
+  + current_location: String
+  + current_order_id: Integer [FK]
+  + destination: String
+  --
+  + current_order: OrderDB
+}
+
+class OrderDB << (E, #FF7700) Entity >> {
+  + id: Integer [PK]
+  + client_id: Integer [FK]
+  + client_name: String
+  + client_phone: String
+  + client_address: String
+  + status: String
+  + courier_id: Integer [FK]
+  + route: String
+  + price: Float
+  + created_at: DateTime
+  --
+  + client: UserDB
+}
+
+' Сервіси (Service Layer)
+class DeliveryService << (S, #00CC00) Service >> {
+  + auto_assign_courier(db: Session, order: OrderDB): void
+  + build_route(pickup: String, delivery: String): String
+  + generate_report(db: Session): Dict
+  + get_daily_statistics(db: Session, date: String): Dict
+  + get_weekly_statistics(db: Session): Dict
+}
+
+' Репозиторії (Repository Layer)
+class OrderRepository << (R, #0055FF) Repository >> {
+  - db: Session
+  + get_all(skip, limit, status_filter, sort_by): List<OrderDB>
+  + get_by_id(order_id: int): OrderDB
+  + create(order_data: Dict): OrderDB
+  + update_status(order_id: int, status: str): OrderDB
+  + delete(order_id: int): Boolean
+}
+
+' Зв'язки
+UserDB "1" -down- "0..*" OrderDB : Створює >
+CourierDB "0..1" -down- "0..1" OrderDB : Доставляє >
+CourierDB "1" -down- "0..*" OrderDB : < Призначається
+
+OrderRepository -up-> OrderDB : Управляє
+DeliveryService -left-> OrderDB : Обробляє
+DeliveryService -up-> CourierDB : Призначає
+
+note bottom of DeliveryService
+  Сервісний шар, який містить
+  логіку автоматичного призначення кур'єрів,
+  генерування фейкових маршрутів 
+  та збирання аналітичних звітів.
+end note
+
+note bottom of OrderRepository
+  Патерн Репозиторій.
+  Ізолює прямі звернення до Бази Даних
+  від маршрутів (API endpoints).
+end note
+
+@enduml
