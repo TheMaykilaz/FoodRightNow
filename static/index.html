@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система Доставки</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div id="toast-container"></div>
+    
+    <header>
+        <div class="header-content container">
+            <h1> Управління Доставкою Kotsuba Transfer</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <section class="card new-order-section">
+            <h2>Створити замовлення</h2>
+            <form id="create-order-form">
+                <div class="form-group">
+                    <label for="order-id">ID Замовлення (обов'язково)</label>
+                    <input type="number" id="order-id" placeholder="Наприклад: 105" required>
+                </div>
+                <div class="form-group">
+                    <label for="client-name">Ім'я клієнта</label>
+                    <input type="text" id="client-name" placeholder="Іван Петренко" required>
+                </div>
+                <div class="form-group">
+                    <label for="client-phone">Телефон клієнта</label>
+                    <input type="text" id="client-phone" placeholder="0501234567" required>
+                </div>
+                <div class="form-group">
+                    <label for="client-address">Адреса доставки</label>
+                    <input type="text" id="client-address" placeholder="м. Київ, вул Хрещатик 1" required>
+                </div>
+                <div class="form-group">
+                    <label for="price">Сума замовлення (₴)</label>
+                    <input type="number" step="0.01" id="price" placeholder="450.00" required>
+                </div>
+                <button type="submit" class="btn primary full-width">Створити Замовлення</button>
+            </form>
+        </section>
+
+        <section class="card orders-list-section">
+            <div class="section-header">
+                <h2>Список замовлень</h2>
+                <div class="filters">
+                    <select id="status-filter">
+                        <option value="">Всі статуси</option>
+                        <option value="Очікує оплати">Очікує оплати</option>
+                        <option value="Створено">Створено</option>
+                        <option value="Призначено кур'єра">Призначено кур'єра</option>
+                        <option value="В дорозі">В дорозі</option>
+                        <option value="Кур'єр очікує">Кур'єр очікує</option>
+                        <option value="Доставлено">Доставлено</option>
+                        <option value="Скасовано">Скасовано</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table id="orders-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Клієнт</th>
+                            <th>Адреса</th>
+                            <th>Ціна</th>
+                            <th>Статус</th>
+                            <th style="width: 160px;">Дії</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody">
+                        <tr>
+                            <td colspan="6" class="text-center text-light">Завантаження...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="pagination">
+                <button id="prev-page" class="btn secondary pagination-btn" disabled>← Попередня</button>
+                <span id="page-info" class="page-info">Сторінка 1</span>
+                <button id="next-page" class="btn secondary pagination-btn">Наступна →</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal for Order Tracking -->
+    <div id="tracking-modal" class="modal" style="display: none;">
+        <div class="modal-content card">
+            <h2>📍 Відстеження замовлення <span id="track-order-id" style="color: var(--primary-color);"></span></h2>
+            <div style="margin: 1.5rem 0; padding: 1rem; background-color: var(--secondary-color); border-radius: 0.5rem;">
+                <p style="margin-bottom: 0.5rem;"><strong>Поточна локація:</strong> <span id="track-location"></span></p>
+                <p><strong>Маршрут:</strong> <span id="track-route"></span></p>
+            </div>
+            <div style="text-align: right;">
+                <button class="btn secondary" onclick="closeTrackingModal()">Закрити</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

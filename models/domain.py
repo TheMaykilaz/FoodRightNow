@@ -4,6 +4,7 @@ from typing import Optional, List
 from datetime import datetime
 
 class DeliveryStatus(str, Enum):
+    AWAITING_PAYMENT = "Очікує оплати"
     CREATED = "Створено"
     ASSIGNED = "Призначено кур'єра"
     IN_TRANSIT = "В дорозі"
@@ -22,7 +23,7 @@ class Order(BaseModel):
     client_name: Optional[str] = None
     client_phone: Optional[str] = None
     client_address: Optional[str] = None
-    status: str = "Створено"
+    status: str = "Очікує оплати"
     courier_id: Optional[int] = None
     route: Optional[str] = None
     price: float = 0.0

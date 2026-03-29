@@ -4,6 +4,8 @@ from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from datetime import datetime, timezone
 from controllers.api_routers import router
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI(title="Delivery Management System API")
 
 # Функція для генерації стандартного формату помилки
@@ -33,6 +35,9 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def global_exception_handler(request: Request, exc: Exception):
     return create_error_format(500, "Внутрішня помилка сервера", request.url.path)
 app.include_router(router)
+
+# Підключення статики для фронтенду
+app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn

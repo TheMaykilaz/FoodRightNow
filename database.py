@@ -33,7 +33,7 @@ class OrderDB(Base):
     client_name = Column(String)
     client_phone = Column(String)
     client_address = Column(String)
-    status = Column(String, default="Створено")
+    status = Column(String, default="Очікує оплати")
     courier_id = Column(Integer, nullable=True)
     route = Column(String, nullable=True)
     price = Column(Float, default=0.0)

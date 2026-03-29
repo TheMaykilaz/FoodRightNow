@@ -12,6 +12,9 @@ class DeliveryService:
         if not order:
             raise ValueError(f"Order {order_id} not found")
         
+        if order.status == DeliveryStatus.AWAITING_PAYMENT:
+            raise ValueError("Замовлення очікує оплати. Спочатку проведіть оплату.")
+            
         if order.status != DeliveryStatus.CREATED:
             raise ValueError("Order is already assigned or in progress")
 
