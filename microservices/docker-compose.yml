@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: delivery_user
+      POSTGRES_PASSWORD: delivery_password
+      POSTGRES_DB: delivery_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  courier_service:
+    build:
+      context: ./courier_service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://delivery_user:delivery_password@db:5432/delivery_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+
+  order_service:
+    build:
+      context: ./order_service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://delivery_user:delivery_password@db:5432/delivery_db
+      - COURIER_SERVICE_URL=http://courier_service:8002
+    depends_on:
+      - db
+      - courier_service
+
+volumes:
+  postgres_data:
