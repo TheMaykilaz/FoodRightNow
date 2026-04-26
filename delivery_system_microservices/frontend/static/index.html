@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kotsuba Transfer — Мікросервіси</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div id="toast-container"></div>
+
+    <header>
+        <div class="header-content container">
+            <h1>Kotsuba Transfer</h1>
+            <div class="service-status">
+                <span class="status-dot" id="status-orders" title="Order Service :8001"></span>
+                <span class="status-dot" id="status-couriers" title="Courier Service :8002"></span>
+                <span class="status-dot" id="status-tracking" title="Tracking Service :8003"></span>
+                <span class="status-dot" id="status-reports" title="Reporting Service :8004"></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="container tab-nav">
+        <button class="tab-btn active" data-tab="orders">Замовлення</button>
+        <button class="tab-btn" data-tab="couriers">Кур'єри</button>
+        <button class="tab-btn" data-tab="tracking">Відстеження</button>
+        <button class="tab-btn" data-tab="reports">Звіти</button>
+    </nav>
+
+    <!-- ==================== ORDERS TAB ==================== -->
+    <main class="container tab-content active" id="tab-orders">
+        <section class="card new-order-section">
+            <h2>Створити замовлення</h2>
+            <form id="create-order-form">
+                <div class="form-group">
+                    <label for="order-id">ID Замовлення</label>
+                    <input type="number" id="order-id" placeholder="Наприклад: 200" required>
+                </div>
+                <div class="form-group">
+                    <label for="client-name">Ім'я клієнта</label>
+                    <input type="text" id="client-name" placeholder="Іван Петренко" required>
+                </div>
+                <div class="form-group">
+                    <label for="client-phone">Телефон клієнта</label>
+                    <input type="text" id="client-phone" placeholder="0501234567" required>
+                </div>
+                <div class="form-group">
+                    <label for="client-address">Адреса доставки</label>
+                    <input type="text" id="client-address" placeholder="м. Київ, вул. Хрещатик 1" required>
+                </div>
+                <div class="form-group">
+                    <label for="price">Сума замовлення (₴)</label>
+                    <input type="number" step="0.01" id="price" placeholder="450.00" required>
+                </div>
+                <button type="submit" class="btn primary full-width">Створити Замовлення</button>
+            </form>
+        </section>
+
+        <section class="card orders-list-section">
+            <div class="section-header">
+                <h2>Список замовлень</h2>
+                <div class="filters">
+                    <select id="status-filter">
+                        <option value="">Всі статуси</option>
+                        <option value="Очікує оплати">Очікує оплати</option>
+                        <option value="Створено">Створено</option>
+                        <option value="Призначено кур'єра">Призначено кур'єра</option>
+                        <option value="В дорозі">В дорозі</option>
+                        <option value="Кур'єр очікує">Кур'єр очікує</option>
+                        <option value="Доставлено">Доставлено</option>
+                        <option value="Скасовано">Скасовано</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <table id="orders-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Клієнт</th>
+                            <th>Адреса</th>
+                            <th>Ціна</th>
+                            <th>Статус</th>
+                            <th style="width: 160px;">Дії</th>
+                        </tr>
+                    </thead>
+                    <tbody id="orders-tbody">
+                        <tr><td colspan="6" class="text-center text-light">Завантаження...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button id="prev-page" class="btn secondary pagination-btn" disabled>← Попередня</button>
+                <span id="page-info" class="page-info">Сторінка 1</span>
+                <button id="next-page" class="btn secondary pagination-btn">Наступна →</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- ==================== COURIERS TAB ==================== -->
+    <div class="container tab-content" id="tab-couriers">
+        <section class="card" style="grid-column: 1 / -1;">
+            <div class="section-header">
+                <h2>Список кур'єрів</h2>
+                <button class="btn primary" onclick="loadCouriers()">Оновити</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Ім'я</th>
+                            <th>Доступність</th>
+                            <th>Локація</th>
+                            <th>Замовлення</th>
+                            <th>Пункт призначення</th>
+                        </tr>
+                    </thead>
+                    <tbody id="couriers-tbody">
+                        <tr><td colspan="6" class="text-center text-light">Завантаження...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- ==================== TRACKING TAB ==================== -->
+    <div class="container tab-content" id="tab-tracking">
+        <section class="card" style="max-width: 500px;">
+            <h2>Відстеження замовлення</h2>
+            <div class="form-group">
+                <label for="track-input-id">ID Замовлення</label>
+                <input type="number" id="track-input-id" placeholder="Введіть ID замовлення">
+            </div>
+            <button class="btn primary full-width" onclick="trackOrderById()">Відстежити</button>
+        </section>
+        <section class="card tracking-result" id="tracking-result" style="display: none;">
+            <h2>Результат відстеження</h2>
+            <div class="tracking-info">
+                <div class="tracking-row"><strong>Замовлення:</strong> <span id="tr-order-id"></span></div>
+                <div class="tracking-row"><strong>Статус:</strong> <span id="tr-status"></span></div>
+                <div class="tracking-row"><strong>Кур'єр:</strong> <span id="tr-courier"></span></div>
+                <div class="tracking-row"><strong>Поточна локація:</strong> <span id="tr-location"></span></div>
+                <div class="tracking-row"><strong>Маршрут:</strong> <span id="tr-route"></span></div>
+                <div class="tracking-row"><strong>Адреса доставки:</strong> <span id="tr-address"></span></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- ==================== REPORTS TAB ==================== -->
+    <div class="container tab-content" id="tab-reports">
+        <section class="card">
+            <h2>Загальна статистика</h2>
+            <div class="report-grid" id="general-report">
+                <div class="report-card"><div class="report-value" id="rpt-total">—</div><div class="report-label">Всього замовлень</div></div>
+                <div class="report-card success"><div class="report-value" id="rpt-delivered">—</div><div class="report-label">Доставлено</div></div>
+                <div class="report-card error"><div class="report-value" id="rpt-cancelled">—</div><div class="report-label">Скасовано</div></div>
+                <div class="report-card"><div class="report-value" id="rpt-pending">—</div><div class="report-label">В обробці</div></div>
+                <div class="report-card"><div class="report-value" id="rpt-avg-price">—</div><div class="report-label">Середня ціна (₴)</div></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Тижнева статистика</h2>
+            <div id="weekly-period" class="text-light" style="margin-bottom: 1rem;"></div>
+            <div class="report-grid" id="weekly-report">
+                <div class="report-card"><div class="report-value" id="wrpt-total">—</div><div class="report-label">Замовлень</div></div>
+                <div class="report-card success"><div class="report-value" id="wrpt-delivered">—</div><div class="report-label">Доставлено</div></div>
+                <div class="report-card error"><div class="report-value" id="wrpt-cancelled">—</div><div class="report-label">Скасовано</div></div>
+                <div class="report-card"><div class="report-value" id="wrpt-revenue">—</div><div class="report-label">Дохід (₴)</div></div>
+                <div class="report-card"><div class="report-value" id="wrpt-couriers">—</div><div class="report-label">Активних кур'єрів</div></div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Денна статистика</h2>
+            <div style="display: flex; gap: 1rem; align-items: end; margin-bottom: 1rem;">
+                <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                    <label for="daily-date">Дата</label>
+                    <input type="date" id="daily-date">
+                </div>
+                <button class="btn primary" onclick="loadDailyReport()">Показати</button>
+            </div>
+            <div class="report-grid" id="daily-report">
+                <div class="report-card"><div class="report-value" id="drpt-total">—</div><div class="report-label">Замовлень</div></div>
+                <div class="report-card success"><div class="report-value" id="drpt-delivered">—</div><div class="report-label">Доставлено</div></div>
+                <div class="report-card error"><div class="report-value" id="drpt-cancelled">—</div><div class="report-label">Скасовано</div></div>
+                <div class="report-card"><div class="report-value" id="drpt-revenue">—</div><div class="report-label">Дохід (₴)</div></div>
+                <div class="report-card"><div class="report-value" id="drpt-avg">—</div><div class="report-label">Середня ціна (₴)</div></div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal for Order Tracking (from orders table) -->
+    <div id="tracking-modal" class="modal" style="display: none;">
+        <div class="modal-content card">
+            <h2>Відстеження замовлення <span id="track-order-id" style="color: var(--primary-color);"></span></h2>
+            <div style="margin: 1.5rem 0; padding: 1rem; background-color: var(--secondary-color); border-radius: 0.5rem;">
+                <p style="margin-bottom: 0.5rem;"><strong>Поточна локація:</strong> <span id="track-location"></span></p>
+                <p><strong>Маршрут:</strong> <span id="track-route"></span></p>
+            </div>
+            <div style="text-align: right;">
+                <button class="btn secondary" onclick="closeTrackingModal()">Закрити</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>
