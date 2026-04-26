@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db, CourierDB, create_tables
 from models import Courier, AssignOrderRequest
+from cache import cacheable, cache_evict
 
 app = FastAPI(title="Courier Service", version="1.0.0")
 
@@ -58,11 +59,13 @@ def health_check():
 
 
 @app.get("/couriers/", response_model=List[Courier])
+@cacheable("couriers:list", ttl=30)
 def get_all_couriers(db: Session = Depends(get_db)):
     return db.query(CourierDB).all()
 
 
 @app.get("/couriers/{courier_id}", response_model=Courier)
+@cacheable("couriers:detail", ttl=30)
 def get_courier(courier_id: int, db: Session = Depends(get_db)):
     courier = db.query(CourierDB).filter(CourierDB.id == courier_id).first()
     if not courier:
@@ -85,6 +88,7 @@ def assign_order_to_courier(request: AssignOrderRequest, db: Session = Depends(g
     db.commit()
     db.refresh(available_courier)
 
+    cache_evict("couriers")
     return {
         "courier_id": available_courier.id,
         "courier_name": available_courier.name,
@@ -101,6 +105,7 @@ def free_courier(courier_id: int, db: Session = Depends(get_db)):
     courier.current_order_id = None
     courier.destination = None
     db.commit()
+    cache_evict("couriers")
 
 
 @app.delete("/couriers/{courier_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -110,6 +115,7 @@ def delete_courier(courier_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Courier not found")
     db.delete(courier)
     db.commit()
+    cache_evict("couriers")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 
 from database import get_db, OrderDB, CourierDB
+from cache import cacheable
 
 DELIVERED = "Доставлено"
 CANCELLED = "Скасовано"
@@ -54,6 +55,7 @@ def health_check():
 
 
 @app.get("/reports/deliveries")
+@cacheable("reports:deliveries", ttl=30)
 def get_delivery_report(db: Session = Depends(get_db)):
     total = db.query(OrderDB).count()
     delivered = db.query(OrderDB).filter(OrderDB.status == DELIVERED).count()
@@ -72,6 +74,7 @@ def get_delivery_report(db: Session = Depends(get_db)):
 
 
 @app.get("/reports/daily")
+@cacheable("reports:daily", ttl=60)
 def get_daily_statistics(date: str, db: Session = Depends(get_db)):
     try:
         dt = datetime.strptime(date, "%Y-%m-%d")
@@ -102,6 +105,7 @@ def get_daily_statistics(date: str, db: Session = Depends(get_db)):
 
 
 @app.get("/reports/weekly")
+@cacheable("reports:weekly", ttl=30)
 def get_weekly_statistics(db: Session = Depends(get_db)):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=7)

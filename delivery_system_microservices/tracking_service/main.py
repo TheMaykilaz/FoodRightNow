@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from database import get_db, OrderDB, CourierDB
+from cache import cacheable
 
 app = FastAPI(title="Tracking Service", version="1.0.0")
 
@@ -51,6 +52,7 @@ def health_check():
 
 
 @app.get("/tracking/{order_id}")
+@cacheable("tracking", ttl=10)
 def track_order(order_id: int, db: Session = Depends(get_db)):
     order = db.query(OrderDB).filter(OrderDB.id == order_id).first()
     if not order:

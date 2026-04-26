@@ -5,7 +5,8 @@ from datetime import datetime, timedelta, timezone
 
 SHARED_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'shared')
 os.makedirs(SHARED_DIR, exist_ok=True)
-DB_PATH = os.path.join(SHARED_DIR, 'delivery.db')
+DB_PATH = os.getenv('DATABASE_PATH', os.path.join(SHARED_DIR, 'delivery.db'))
+os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from database import get_db, OrderDB, UserDB, create_tables
 from models import Order, DeliveryStatus, UserCreate, UserResponse
 from repository import OrderRepository
+from cache import cacheable, cache_evict, cache_flush_all
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "-")
 COURIER_SERVICE_URL = os.getenv("COURIER_SERVICE_URL", "http://localhost:8002")
@@ -104,10 +105,13 @@ def create_order(order: Order, db: Session = Depends(get_db)):
     else:
         raise HTTPException(status_code=400, detail="Must provide either client_id or full client details (name, phone, address)")
 
-    return repo.create(order_dict)
+    result = repo.create(order_dict)
+    cache_evict("orders")
+    return result
 
 
 @app.get("/orders/", response_model=List[Order])
+@cacheable("orders:list", ttl=30)
 def get_all_orders(
     skip: int = 0,
     limit: int = 10,
@@ -120,6 +124,7 @@ def get_all_orders(
 
 
 @app.get("/orders/{order_id}", response_model=Order)
+@cacheable("orders:detail", ttl=30)
 def get_order(order_id: int, db: Session = Depends(get_db)):
     repo = OrderRepository(db)
     order = repo.get_by_id(order_id)
@@ -143,7 +148,9 @@ def update_status(order_id: int, new_status: str, db: Session = Depends(get_db))
             except Exception:
                 pass
 
-    return repo.update(order_id, {"status": new_status})
+    result = repo.update(order_id, {"status": new_status})
+    cache_evict("orders")
+    return result
 
 
 @app.post("/orders/{order_id}/assign", response_model=Order)
@@ -181,6 +188,7 @@ def assign_courier(order_id: int, db: Session = Depends(get_db)):
         "status": DeliveryStatus.ASSIGNED.value,
         "route": data["route"]
     })
+    cache_evict("orders")
     return updated_order
 
 
@@ -193,6 +201,7 @@ def notify_arrival(order_id: int, db: Session = Depends(get_db)):
     if order.status not in [DeliveryStatus.IN_TRANSIT.value, DeliveryStatus.ASSIGNED.value]:
         raise HTTPException(status_code=400, detail="Cannot notify arrival. Courier is not on the way.")
     order = repo.update(order_id, {"status": DeliveryStatus.WAITING.value})
+    cache_evict("orders")
     message = f"Шановний {order.client_name}, ваш кур'єр очікує під дверима за адресою {order.client_address}!"
     return {"message": message, "order_status": order.status}
 
@@ -210,7 +219,9 @@ def replace_order(order_id: int, updated_order: Order, db: Session = Depends(get
         "courier_id": updated_order.courier_id,
         "route": updated_order.route
     }
-    return repo.update(order_id, update_data)
+    result = repo.update(order_id, update_data)
+    cache_evict("orders")
+    return result
 
 
 @app.post("/orders/{order_id}/create-checkout-session")
@@ -252,6 +263,7 @@ def payment_success(order_id: int, session_id: str, db: Session = Depends(get_db
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     repo.update(order_id, {"status": DeliveryStatus.CREATED.value})
+    cache_evict("orders")
     return RedirectResponse(url="http://localhost:8000/")
 
 
@@ -265,11 +277,13 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Неможливо видалити замовлення, на яке зараз призначено кур'єра.")
     if not repo.delete(order_id):
         raise HTTPException(status_code=404, detail="Замовлення не знайдено")
+    cache_evict("orders")
     return None
 
 
 # --- Users ---
 @app.get("/users/", response_model=List[UserResponse])
+@cacheable("users:list", ttl=60)
 def get_all_users(db: Session = Depends(get_db)):
     return db.query(UserDB).all()
 
@@ -286,6 +300,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+    cache_evict("users")
     return new_user
 
 
@@ -296,6 +311,13 @@ def delete_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found")
     db.delete(user)
     db.commit()
+    cache_evict("users")
+
+
+@app.post("/cache/flush", tags=["system"])
+def flush_cache():
+    count = cache_flush_all()
+    return {"flushed_keys": count}
 
 
 if __name__ == "__main__":

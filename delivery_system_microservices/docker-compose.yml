@@ -1,0 +1,98 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile.seed
+    environment:
+      - DATABASE_PATH=/data/delivery.db
+    volumes:
+      - db_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  order_service:
+    build: ./order_service
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_PATH=/data/delivery.db
+      - REDIS_URL=redis://redis:6379
+      - COURIER_SERVICE_URL=http://courier_service:8002
+    volumes:
+      - db_data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  courier_service:
+    build: ./courier_service
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_PATH=/data/delivery.db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - db_data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  tracking_service:
+    build: ./tracking_service
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_PATH=/data/delivery.db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - db_data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  reporting_service:
+    build: ./reporting_service
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_PATH=/data/delivery.db
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - db_data:/data
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - order_service
+      - courier_service
+      - tracking_service
+      - reporting_service
+
+volumes:
+  db_data:
