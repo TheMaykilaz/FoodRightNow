@@ -50,15 +50,19 @@ def cacheable(prefix: str, ttl: int = 60):
 
             # Cache MISS — call original function
             result = func(*args, **kwargs)
+            encoded = jsonable_encoder(result)
 
             # Store result in Redis
             try:
-                serialized = json.dumps(jsonable_encoder(result), default=str)
+                serialized = json.dumps(encoded, default=str)
                 redis_client.setex(cache_key, ttl, serialized)
             except Exception:
                 pass
 
-            return result
+            return JSONResponse(
+                content=encoded,
+                headers={"X-Cache": "MISS"}
+            )
         return wrapper
     return decorator
 
