@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-seed
+  namespace: delivery-system
+spec:
+  ttlSecondsAfterFinished: 60
+  template:
+    metadata:
+      labels:
+        app: db-seed
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: seed
+          image: delivery-seed:latest
+          imagePullPolicy: Never
+          env:
+            - name: DATABASE_PATH
+              valueFrom:
+                configMapKeyRef:
+                  name: delivery-config
+                  key: DATABASE_PATH
+          volumeMounts:
+            - name: db-storage
+              mountPath: /data
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: delivery-db-pvc

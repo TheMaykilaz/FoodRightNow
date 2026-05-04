@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: delivery-config
+  namespace: delivery-system
+data:
+  DATABASE_PATH: "/data/delivery.db"
+  REDIS_URL: "redis://redis-service:6379"
+  COURIER_SERVICE_URL: "http://courier-service:8002"
+  ORDER_SERVICE_URL: "http://order-service:8001"
+  TRACKING_SERVICE_URL: "http://tracking-service:8003"
+  REPORTING_SERVICE_URL: "http://reporting-service:8004"
